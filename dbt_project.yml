@@ -1,0 +1,22 @@
+name: 'voy_case_study'
+version: '1.0.0'
+config-version: 2
+
+profile: 'voy_case_study'
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  voy_case_study:
+    staging:
+      +materialized: view
+    core:
+      +materialized: table
+    marts:
+      +materialized: table

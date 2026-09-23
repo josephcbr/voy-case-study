@@ -1,0 +1,13 @@
+voy_case_study:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('PGHOST') }}"
+      user: "{{ env_var('PGUSER') }}"
+      password: "{{ env_var('PGPASSWORD') }}"
+      port: "{{ env_var('PGPORT', '5432') | int }}"
+      dbname: "{{ env_var('PGDATABASE') }}"
+      schema: "{{ env_var('PGSCHEMA', 'analytics') }}"
+      sslmode: require
+      threads: 4
