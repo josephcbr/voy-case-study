@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: Calendar date spine, one row per day.
+    columns:
+      - name: date_day
+        data_type: date
+        description: Calendar date.
+
+      - name: day_of_week
+        data_type: integer
+        description: ISO day of week (1 = Monday, 7 = Sunday).
+
+      - name: day_name
+        data_type: text
+        description: Day name, e.g. "Monday".
+
+      - name: is_weekend
+        data_type: boolean
+        description: True for Saturday and Sunday.
+
+      - name: month_start_date
+        data_type: date
+        description: First day of the month containing date_day.
+
+      - name: month_name
+        data_type: text
+        description: Month name, e.g. "July".
+
+      - name: quarter_start_date
+        data_type: date
+        description: First day of the quarter containing date_day.
+
+      - name: year_number
+        data_type: integer
+        description: Calendar year.

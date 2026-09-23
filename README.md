@@ -11,9 +11,9 @@ For the task brief, see `docs/dataset_README.md`.
 
 ## Status
 
-Scaffold only, no models yet: repo structure, Neon connection, and raw
-sources are wired up. Staging/core/marts modelling and the stakeholder-facing
-visual are still to come.
+Repo structure, Neon connection, raw sources, and the 3 staging models are
+in place. Core and marts modelling and the stakeholder-facing visual are
+still to come.
 
 ## Stack
 
@@ -28,9 +28,10 @@ docs/             task brief notes + dataset schema
 scripts/
   load_raw_data.py  loads the 3 case-study CSVs into Neon's raw schema
 models/
-  staging/        _sources.yml declaring the raw.* tables; staging models TBD
+  staging/        _sources.yml + one stg_ model/yml per raw source
   core/           fct/dim tables (TBD)
   marts/          stakeholder-facing marts (TBD)
+packages.yml      dbt-labs/codegen, used to draft staging yml column docs
 dbt_project.yml
 profiles.yml      dbt connection profile — no secrets, reads from env vars
 env.example.sh    template for the env vars profiles.yml + the loader need
@@ -43,6 +44,7 @@ env.example.sh    template for the env vars profiles.yml + the loader need
    python3.13 -m venv .venv
    .venv/bin/pip install --upgrade pip
    .venv/bin/pip install dbt-postgres
+   .venv/bin/dbt deps
    ```
 2. `cp env.example.sh env.sh`, fill in the real Neon connection details and
    the path to the raw CSVs, then `source env.sh`.

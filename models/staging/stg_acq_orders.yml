@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: stg_acq_orders
+    description: One row per customer acquisition order.
+    columns:
+      - name: customer_id
+        data_type: bigint
+        description: Foreign key to stg_customers.
+        data_tests:
+          - unique
+          - not_null
+
+      - name: taxonomy_business_category_group
+        data_type: character varying
+        description: Acquisition taxonomy category for this order.

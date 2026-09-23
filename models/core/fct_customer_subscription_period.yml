@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: fct_customer_subscription_period
+    description: One row per subscription renewal period.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - customer_id
+              - subscription_id
+              - subscription_period_start_date
+    columns:
+      - name: customer_id
+        data_type: bigint
+        description: Foreign key to dim_customer.
+
+      - name: subscription_id
+        data_type: bigint
+        description: Identifier for a recurring subscription.
+
+      - name: subscription_start_date
+        data_type: date
+        description: Date the subscription itself first started.
+
+      - name: subscription_period_start_date
+        data_type: date
+        description: Date this specific renewal period started.
+
+      - name: subscription_period_end_date
+        data_type: date
+        description: Date this specific renewal period ended.
+
+      - name: subscription_period
+        data_type: bigint
+        description: 1-indexed sequence number of this period within the subscription.

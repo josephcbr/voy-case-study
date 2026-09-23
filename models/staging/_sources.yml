@@ -6,22 +6,11 @@ sources:
     tables:
       - name: customers
         description: One row per customer. Loaded from customers.csv.
-        columns:
-          - name: customer_id
-          - name: customer_country
       - name: activity
         description: >
           One row per subscription period. from_date/to_date mark the
           active window for that subscription_id. Loaded from activity.csv.
-        columns:
-          - name: customer_id
-          - name: subscription_id
-          - name: from_date
-          - name: to_date
       - name: acq_orders
         description: >
           One row per customer acquisition order, with the acquisition
           taxonomy category. Loaded from acq_orders.csv.
-        columns:
-          - name: customer_id
-          - name: taxonomy_business_category_group

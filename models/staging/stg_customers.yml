@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: One row per customer.
+    columns:
+      - name: customer_id
+        data_type: bigint
+        description: Unique identifier for a customer.
+        data_tests:
+          - unique
+          - not_null
+
+      - name: customer_country
+        data_type: character varying
+        description: Customer's country.

@@ -12,6 +12,9 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+vars:
+  current_date: "'2024-07-24'::date"
+
 models:
   voy_case_study:
     staging:

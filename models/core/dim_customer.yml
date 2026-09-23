@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: dim_customer
+    description: One row per customer.
+    columns:
+      - name: customer_id
+        data_type: bigint
+        description: Unique identifier for a customer.
+        data_tests:
+          - unique
+          - not_null
+
+      - name: customer_country
+        data_type: character varying
+        description: Customer's country.
+
+      - name: taxonomy_business_category_group
+        data_type: character varying
+        description: Acquisition taxonomy category for this customer.
+
+      - name: customer_join_date
+        data_type: date
+        description: Date of the customer's first subscription period.
+
+      - name: customer_status
+        data_type: text
+        description: >
+          "Active" if the customer's latest subscription period ends on or
+          after current_date, "Expired" if it ends before, "Inactive" if
+          the customer has no subscription history.
