@@ -3,6 +3,6 @@ with source as (
 )
     
 select
-    customer_id::bigint as customer_id,
-    customer_country::varchar as customer_country
+    cast(customer_id as int64) as customer_id,
+    cast(customer_country as string) as customer_country
 from source

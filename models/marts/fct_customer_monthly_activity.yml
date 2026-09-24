@@ -1,0 +1,72 @@
+version: 2
+
+models:
+  - name: fct_customer_monthly_activity
+    description: >
+      One row per customer per calendar month, from the customer's first
+      active month through current_date's month (see dbt_project.yml vars),
+      regardless of how long they've been dormant.
+    columns:
+      - name: customer_id
+        data_type: int64
+        description: Foreign key to dim_customer.
+
+      - name: month_start_date
+        data_type: date
+        description: First day of the calendar month this row covers.
+
+      - name: first_active_date
+        data_type: date
+        description: >
+          Actual date of the customer's first subscription period (day
+          precision, not truncated to month) - kept separate from
+          cohort_month so cohorts can be re-bucketed weekly or daily later.
+
+      - name: cohort_month
+        data_type: date
+        description: First day of the customer's acquisition month.
+
+      - name: months_since_acquisition
+        data_type: int64
+        description: Number of months between cohort_month and month_start_date.
+
+      - name: customer_country
+        data_type: string
+        description: Customer's country, denormalized from dim_customer.
+
+      - name: taxonomy_business_category_group
+        data_type: string
+        description: Acquisition taxonomy category, denormalized from dim_customer.
+
+      - name: active_days
+        data_type: int64
+        description: >
+          Number of distinct calendar days in this month the customer had
+          an active subscription, deduplicated across concurrent/overlapping
+          subscriptions.
+
+      - name: non_active_days
+        data_type: int64
+        description: Days in the month minus active_days.
+
+      - name: is_active
+        data_type: boolean
+        description: True if active_days > 0.
+
+      - name: is_acquisition
+        data_type: boolean
+        description: True for the customer's first-ever active month.
+
+      - name: is_reactivation
+        data_type: boolean
+        description: >
+          True if this is an active month, it's not the acquisition month,
+          and the immediately preceding month had 0 active days - i.e. the
+          customer returned after at least a full month with no subscription.
+
+      - name: is_churn
+        data_type: boolean
+        description: >
+          True if this month has 0 active days and the immediately
+          preceding month had active days - i.e. the customer just went
+          inactive.

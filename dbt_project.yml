@@ -13,7 +13,7 @@ clean-targets:
   - "dbt_packages"
 
 vars:
-  current_date: "'2024-07-24'::date"
+  current_date: "date('2024-07-24')"
 
 models:
   voy_case_study:

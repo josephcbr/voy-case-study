@@ -3,8 +3,8 @@ with source as (
 )
 
 select
-    customer_id::bigint as customer_id,
-    subscription_id::bigint as subscription_id,
-    from_date::date as from_date,
-    to_date::date as to_date
+    cast(customer_id as int64) as customer_id,
+    cast(subscription_id as int64) as subscription_id,
+    cast(from_date as date) as from_date,
+    cast(to_date as date) as to_date
 from source

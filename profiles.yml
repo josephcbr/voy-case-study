@@ -2,12 +2,9 @@ voy_case_study:
   target: dev
   outputs:
     dev:
-      type: postgres
-      host: "{{ env_var('PGHOST') }}"
-      user: "{{ env_var('PGUSER') }}"
-      password: "{{ env_var('PGPASSWORD') }}"
-      port: "{{ env_var('PGPORT', '5432') | int }}"
-      dbname: "{{ env_var('PGDATABASE') }}"
-      schema: "{{ env_var('PGSCHEMA', 'analytics') }}"
-      sslmode: require
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: "{{ env_var('BQ_DATASET', 'analytics') }}"
+      location: "{{ env_var('BQ_LOCATION', 'US') }}"
       threads: 4

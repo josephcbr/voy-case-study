@@ -16,11 +16,11 @@ models:
               - to_date
     columns:
       - name: customer_id
-        data_type: bigint
+        data_type: int64
         description: Foreign key to stg_customers.
 
       - name: subscription_id
-        data_type: bigint
+        data_type: int64
         description: >
           Identifier for a recurring subscription. Not unique on its own -
           a subscription has one row per renewal period (see from_date).

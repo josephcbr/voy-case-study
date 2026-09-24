@@ -5,12 +5,12 @@ models:
     description: One row per customer.
     columns:
       - name: customer_id
-        data_type: bigint
+        data_type: int64
         description: Unique identifier for a customer.
         data_tests:
           - unique
           - not_null
 
       - name: customer_country
-        data_type: character varying
+        data_type: string
         description: Customer's country.

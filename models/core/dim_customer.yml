@@ -5,18 +5,18 @@ models:
     description: One row per customer.
     columns:
       - name: customer_id
-        data_type: bigint
+        data_type: int64
         description: Unique identifier for a customer.
         data_tests:
           - unique
           - not_null
 
       - name: customer_country
-        data_type: character varying
+        data_type: string
         description: Customer's country.
 
       - name: taxonomy_business_category_group
-        data_type: character varying
+        data_type: string
         description: Acquisition taxonomy category for this customer.
 
       - name: customer_join_date
@@ -24,7 +24,7 @@ models:
         description: Date of the customer's first subscription period.
 
       - name: customer_status
-        data_type: text
+        data_type: string
         description: >
           "Active" if the customer's latest subscription period ends on or
           after current_date, "Expired" if it ends before, "Inactive" if

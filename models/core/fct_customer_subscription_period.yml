@@ -12,11 +12,11 @@ models:
               - subscription_period_start_date
     columns:
       - name: customer_id
-        data_type: bigint
+        data_type: int64
         description: Foreign key to dim_customer.
 
       - name: subscription_id
-        data_type: bigint
+        data_type: int64
         description: Identifier for a recurring subscription.
 
       - name: subscription_start_date
@@ -32,5 +32,5 @@ models:
         description: Date this specific renewal period ended.
 
       - name: subscription_period
-        data_type: bigint
+        data_type: int64
         description: 1-indexed sequence number of this period within the subscription.

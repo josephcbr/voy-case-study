@@ -1,7 +1,8 @@
-"""Load the case-study CSVs into Neon as raw tables.
+"""Load the case-study CSVs into BigQuery as raw tables.
 
-Reads connection details from PGHOST/PGUSER/PGPASSWORD/PGDATABASE/PGSCHEMA
-and the CSV folder from RAW_DATA_DIR (see env.example.sh). Run with:
+Reads GCP_PROJECT_ID/BQ_LOCATION and the CSV folder from RAW_DATA_DIR (see
+env.example.sh). Auth is via gcloud application-default credentials - run
+`gcloud auth application-default login` once before this. Run with:
 
     source env.sh && .venv/bin/python scripts/load_raw_data.py
 """
@@ -9,58 +10,58 @@ and the CSV folder from RAW_DATA_DIR (see env.example.sh). Run with:
 import os
 import pathlib
 
-import psycopg2
+from google.cloud import bigquery
 
 TABLES = {
     "customers": {
         "file": "customers.csv",
-        "columns": "customer_id bigint, customer_country text",
+        "schema": [
+            bigquery.SchemaField("customer_id", "INT64"),
+            bigquery.SchemaField("customer_country", "STRING"),
+        ],
     },
     "activity": {
         "file": "activity.csv",
-        "columns": (
-            "customer_id bigint, subscription_id bigint, "
-            "from_date date, to_date date"
-        ),
+        "schema": [
+            bigquery.SchemaField("customer_id", "INT64"),
+            bigquery.SchemaField("subscription_id", "INT64"),
+            bigquery.SchemaField("from_date", "DATE"),
+            bigquery.SchemaField("to_date", "DATE"),
+        ],
     },
     "acq_orders": {
         "file": "acq_orders.csv",
-        "columns": "customer_id bigint, taxonomy_business_category_group text",
+        "schema": [
+            bigquery.SchemaField("customer_id", "INT64"),
+            bigquery.SchemaField("taxonomy_business_category_group", "STRING"),
+        ],
     },
 }
 
 
 def main():
     raw_dir = pathlib.Path(os.environ["RAW_DATA_DIR"])
-    conn = psycopg2.connect(
-        host=os.environ["PGHOST"],
-        user=os.environ["PGUSER"],
-        password=os.environ["PGPASSWORD"],
-        dbname=os.environ["PGDATABASE"],
-        port=os.environ.get("PGPORT", "5432"),
-        sslmode="require",
-    )
-    conn.autocommit = False
-    try:
-        with conn.cursor() as cur:
-            cur.execute("CREATE SCHEMA IF NOT EXISTS raw;")
-            for table, spec in TABLES.items():
-                csv_path = raw_dir / spec["file"]
-                cur.execute(f"DROP TABLE IF EXISTS raw.{table};")
-                cur.execute(f"CREATE TABLE raw.{table} ({spec['columns']});")
-                with open(csv_path, encoding="utf-8") as f:
-                    cur.copy_expert(
-                        f"COPY raw.{table} FROM STDIN WITH (FORMAT csv, HEADER true)",
-                        f,
-                    )
-                cur.execute(f"SELECT count(*) FROM raw.{table};")
-                print(f"raw.{table}: loaded {cur.fetchone()[0]} rows from {csv_path.name}")
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+    project = os.environ["GCP_PROJECT_ID"]
+    location = os.environ.get("BQ_LOCATION", "US")
+    client = bigquery.Client(project=project, location=location)
+
+    dataset_id = f"{project}.raw"
+    client.create_dataset(bigquery.Dataset(dataset_id), exists_ok=True)
+
+    for table, spec in TABLES.items():
+        csv_path = raw_dir / spec["file"]
+        table_id = f"{dataset_id}.{table}"
+        job_config = bigquery.LoadJobConfig(
+            schema=spec["schema"],
+            source_format=bigquery.SourceFormat.CSV,
+            skip_leading_rows=1,
+            write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+        )
+        with open(csv_path, "rb") as f:
+            job = client.load_table_from_file(f, table_id, job_config=job_config)
+        job.result()
+        table_ref = client.get_table(table_id)
+        print(f"raw.{table}: loaded {table_ref.num_rows} rows from {csv_path.name}")
 
 
 if __name__ == "__main__":
