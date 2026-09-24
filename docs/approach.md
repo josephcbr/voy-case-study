@@ -33,11 +33,13 @@ from the customer's first active month through the current "as of" date
 fixed date, not wall-clock `today()`, since the source data is static).
 
 That date is deliberately not the last date in the raw data. `activity.csv`
-runs to 2024-08-16, but `current_date` is pinned to 2024-07-24. The last
-~3 weeks of the raw data contain a snapshot artifact — a subset of
-subscriptions get two rows per day near the end of the file. Cutting the
-analysis off before that window avoids the whole model needing to reason
-about it, at the cost of the most recent 3 weeks of activity.
+runs to 2024-08-16, but `current_date` is pinned to 2024-07-24 in order to 
+simulate the use case of having subscriptions that run past the current
+date. The data in the last 3 weeks of the dataset looks to behave differently
+than the historic data, looking more like subscription snapshot data for 
+active subscriptions. More detail is needed on how this data is generated
+in order to decide if the method of combining the records for a subscription
+ID with the same start date applies correctly to it.
 
 Each row carries:
 
