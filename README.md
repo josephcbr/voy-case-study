@@ -1,50 +1,64 @@
 # Voy — Analytics Engineer case study
 
-A dbt project modelling subscription retention/cohort/churn for Voy's
-take-home assessment.
+A dbt project modelling subscription retention, cohorts, churn, and
+acquisition for Voy's take-home assessment, plus a Streamlit dashboard for
+the outputs.
 
-Built as a standalone sandbox against its own free
-[BigQuery sandbox](https://cloud.google.com/bigquery/docs/sandbox) project —
-not tied to any company's Snowflake/BigQuery account, dbt Cloud project, or
-GitHub org.
+Built as a standalone project against its own free
+[BigQuery sandbox](https://cloud.google.com/bigquery/docs/sandbox)
 
-For the task brief, see `docs/dataset_README.md`.
+## Links
+
+- **Live dashboard:** https://voy-case-study-pg22d3aqmurta8uj2muc9f.streamlit.app/
+- **Public dataset (BigQuery console):** https://console.cloud.google.com/bigquery?project=voy-case-study&d=analytics&p=voy-case-study&page=dataset
+  — the `analytics` dataset is readable by any signed-in Google account. Open
+  a table and use the Preview tab to browse without running a query, or run
+  your own query under your own GCP project.
+- **Approach write-up** (the case-study questions, answered): [`docs/approach.md`](docs/approach.md)
+- **Task brief and dataset notes:** [`docs/dataset_README.md`](docs/dataset_README.md)
 
 ## Status
 
-Repo structure, BigQuery connection, raw sources, staging, core (customer/date
-dimensions, subscription-period and active-span facts) and a first marts model
-(`fct_customer_monthly_activity`) are in place. The stakeholder-facing visual
-is still to come.
+Staging, core (customer/date dimensions, subscription-period fact), one
+marts model (`fct_customer_monthly_activity`), and the dashboard are all
+built and live.
 
 ## Stack
 
 - **Database:** [BigQuery sandbox](https://cloud.google.com/bigquery/docs/sandbox)
-  (no billing account, no credit card — 10 GiB storage lifetime cap, 1 TiB
-  query processing/month, tables auto-expire after 60 days of inactivity, DML
-  blocked but `CREATE OR REPLACE TABLE ... AS SELECT` is fine)
 - **Transformation:** dbt-core + `dbt-bigquery`, in its own Python virtualenv
 - **Auth:** OAuth via `gcloud auth application-default login` — no key file
+- **Dashboard:** Streamlit + Plotly, deployed on Streamlit Community Cloud,
+  reading `analytics.fct_customer_monthly_activity` with a read-only service
+  account
 - **Linting:** `sqlfluff` (dbt templater, BigQuery dialect) — config in `.sqlfluff`
 
 ## Repo structure
 
 ```
-docs/             task brief notes + dataset schema
+docs/
+  dataset_README.md   task brief + dataset schema notes
+  approach.md          write-up: modelling approach, decisions, how it answers the brief
+dashboard/
+  app.py               Streamlit dashboard (reads the mart, not raw/staging/core)
+  requirements.txt
 scripts/
-  load_raw_data.py  loads the 3 case-study CSVs into BigQuery's raw dataset
+  load_raw_data.py     loads the 3 case-study CSVs into BigQuery's raw dataset
 models/
-  staging/        _sources.yml + one stg_ model/yml per raw source
-  core/           dim_customer, dim_date, fct_customer_subscription_period,
-                  fct_customer_active_span
-  marts/          fct_customer_monthly_activity
-packages.yml      dbt-labs/codegen, used to draft staging yml column docs
-dbt_project.yml
-profiles.yml      dbt connection profile — no secrets, reads from env vars
-env.example.sh    template for the env vars profiles.yml + the loader need
+  staging/             _sources.yml + one stg_ model/yml per raw source
+  core/                dim_customer, dim_date, fct_customer_subscription_period
+  marts/                fct_customer_monthly_activity
+packages.yml           dbt-labs/codegen, used to draft yml column docs
+dbt_project.yml         vars: current_date (frozen "as of" date for the whole build)
+profiles.yml            dbt connection profile — no secrets, reads from env vars
+env.example.sh          template for the env vars profiles.yml + the loader need
 ```
 
-## Setup
+## Setup — run the models yourself
+
+Write access to the `voy-case-study` GCP project is private. To rebuild or
+modify the models, point this same code at your **own** free BigQuery
+sandbox project instead:
 
 1. Python 3.11–3.13 (dbt-core doesn't support 3.14 yet):
    ```
@@ -53,12 +67,35 @@ env.example.sh    template for the env vars profiles.yml + the loader need
    .venv/bin/pip install dbt-bigquery
    .venv/bin/dbt deps
    ```
-2. Install the gcloud CLI (`brew install --cask gcloud-cli`) and run
-   `gcloud auth application-default login` once, in your own Google account.
-3. `cp env.example.sh env.sh`, fill in your BigQuery sandbox project ID and
-   the path to the raw CSVs, then `source env.sh`.
-4. Load the raw data: `.venv/bin/python scripts/load_raw_data.py`
-5. `.venv/bin/dbt debug` to verify the connection, then `.venv/bin/dbt run`.
+2. Create your own sandbox project at
+   [console.cloud.google.com/bigquery](https://console.cloud.google.com/bigquery)
+   (personal Google account, no billing needed), then note its project ID.
+3. Install the gcloud CLI (`brew install --cask gcloud-cli`) and run
+   `gcloud auth application-default login` once, in that same account.
+4. Get the 3 raw case-study CSVs (`customers.csv`, `activity.csv`,
+   `acq_orders.csv`) — they're Voy's own case-study material and aren't
+   committed to this repo (see `docs/dataset_README.md`). Ask the project
+   owner if you don't already have them.
+5. `cp env.example.sh env.sh`, fill in your project ID and the path to the
+   raw CSVs, then `source env.sh`.
+6. Load the raw data: `.venv/bin/python scripts/load_raw_data.py`
+7. `.venv/bin/dbt debug` to verify the connection, then `.venv/bin/dbt run`
+   and `.venv/bin/dbt test`.
 
 `env.sh` holds your project ID (not a secret, but still local-only) and is
 gitignored — never commit it.
+
+### Running the dashboard locally
+
+```
+cd dashboard
+python3.13 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+source ../env.sh
+.venv/bin/streamlit run app.py
+```
+
+Locally it authenticates the same way as dbt (`gcloud` ADC). The deployed
+version on Streamlit Cloud instead reads a read-only service account key
+from Streamlit's own secrets manager — see `dashboard/app.py` for the
+fallback logic.
