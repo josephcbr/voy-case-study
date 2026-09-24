@@ -134,35 +134,27 @@ def load_cohort_retention(countries, categories, cohort_start, cohort_end, max_t
         params.append(bigquery.ArrayQueryParameter("categories", "STRING", list(categories)))
     where_sql = " and ".join(clauses)
 
+    # eligible_customers is a plain count(*) per (cohort_group, months_since_acquisition)
+    # cell, not a fixed whole-group size reused across every tenure point. A row only
+    # exists for a customer at a given tenure if they're actually old enough to have
+    # reached it, so this naturally excludes sub-cohorts (e.g. June, within a pooled
+    # 2024 year group) that haven't lived long enough yet - they simply have no row
+    # at month 6, rather than being wrongly counted as still in the denominator.
     query = f"""
-        with filtered as (
-            select
-                date_trunc(cohort_month, {grain_sql}) as cohort_group,
-                months_since_acquisition,
-                is_active
-            from `{TABLE}`
-            where {where_sql}
-        ),
-        sizes as (
-            select cohort_group, count(*) as cohort_size
-            from filtered
-            where months_since_acquisition = 0
-            group by 1
-        )
         select
-            f.cohort_group,
-            f.months_since_acquisition,
-            countif(f.is_active) as active_customers,
-            max(s.cohort_size) as cohort_size
-        from filtered f
-        join sizes s using (cohort_group)
+            date_trunc(cohort_month, {grain_sql}) as cohort_group,
+            months_since_acquisition,
+            countif(is_active) as active_customers,
+            count(*) as eligible_customers
+        from `{TABLE}`
+        where {where_sql}
         group by 1, 2
         order by 1, 2
     """
     job_config = bigquery.QueryJobConfig(query_parameters=params)
     df = client.query(query, job_config=job_config).to_dataframe()
     df["cohort_group"] = pd.to_datetime(df["cohort_group"])
-    df["retention_pct"] = df["active_customers"] / df["cohort_size"] * 100
+    df["retention_pct"] = df["active_customers"] / df["eligible_customers"] * 100
     return df
 
 
@@ -278,7 +270,12 @@ with tab_cohort:
         st.info("No data for the selected filters.")
     else:
         groups = sorted(cohort_df["cohort_group"].unique())
-        sizes = cohort_df.drop_duplicates("cohort_group").set_index("cohort_group")["cohort_size"]
+        # every customer has a months_since_acquisition=0 row, so that cell's
+        # eligible_customers is the true, full cohort size for the group
+        sizes = (
+            cohort_df[cohort_df["months_since_acquisition"] == 0]
+            .set_index("cohort_group")["eligible_customers"]
+        )
 
         def base_label(group):
             if cohort_grain == "Quarter":
