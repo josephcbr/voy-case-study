@@ -8,6 +8,7 @@ Streamlit Cloud: reads a service account key from st.secrets["gcp_service_accoun
 """
 
 import pandas as pd
+import plotly.colors as pc
 import plotly.graph_objects as go
 import streamlit as st
 from google.cloud import bigquery
@@ -103,14 +104,19 @@ def load_monthly(countries, categories, month_start, month_end, cohort_start, co
     return df
 
 
+COHORT_GRAIN_SQL = {"Month": "month", "Quarter": "quarter", "Year": "year"}
+
+
 @st.cache_data(ttl=3600)
-def load_cohort_retention(countries, categories, cohort_start, cohort_end, max_tenure_months):
-    """Classic cohort retention grid: % of each cohort still active at each
-    months-since-acquisition offset. Not filtered by month_range - a cohort's
+def load_cohort_retention(countries, categories, cohort_start, cohort_end, max_tenure_months, grain):
+    """Cohort retention curves: % of each cohort still active at each
+    months-since-acquisition offset, with cohorts pooled by month/quarter/year
+    so the chart stays readable. Not filtered by month_range - a cohort's
     size is fixed at acquisition, so restricting by calendar month here would
     undercount cohorts whose acquisition month falls outside that range.
     """
     client = get_client()
+    grain_sql = COHORT_GRAIN_SQL[grain]  # from a fixed dict, not user text - safe to inline
     clauses = [
         "cohort_month between @cohort_start and @cohort_end",
         "months_since_acquisition between 0 and @max_tenure",
@@ -130,29 +136,32 @@ def load_cohort_retention(countries, categories, cohort_start, cohort_end, max_t
 
     query = f"""
         with filtered as (
-            select cohort_month, months_since_acquisition, is_active
+            select
+                date_trunc(cohort_month, {grain_sql}) as cohort_group,
+                months_since_acquisition,
+                is_active
             from `{TABLE}`
             where {where_sql}
         ),
         sizes as (
-            select cohort_month, count(*) as cohort_size
+            select cohort_group, count(*) as cohort_size
             from filtered
             where months_since_acquisition = 0
             group by 1
         )
         select
-            f.cohort_month,
+            f.cohort_group,
             f.months_since_acquisition,
             countif(f.is_active) as active_customers,
             max(s.cohort_size) as cohort_size
         from filtered f
-        join sizes s using (cohort_month)
+        join sizes s using (cohort_group)
         group by 1, 2
         order by 1, 2
     """
     job_config = bigquery.QueryJobConfig(query_parameters=params)
     df = client.query(query, job_config=job_config).to_dataframe()
-    df["cohort_month"] = pd.to_datetime(df["cohort_month"])
+    df["cohort_group"] = pd.to_datetime(df["cohort_group"])
     df["retention_pct"] = df["active_customers"] / df["cohort_size"] * 100
     return df
 
@@ -250,7 +259,11 @@ with tab_cohort:
         "restricting by calendar month would undercount cohorts acquired "
         "outside that window."
     )
-    max_tenure = st.slider("Months of tenure to show", min_value=6, max_value=48, value=24)
+    cohort_opt_col1, cohort_opt_col2 = st.columns(2)
+    with cohort_opt_col1:
+        cohort_grain = st.radio("Group cohorts by", ["Year", "Quarter", "Month"], horizontal=True)
+    with cohort_opt_col2:
+        max_tenure = st.slider("Months of tenure to show", min_value=6, max_value=48, value=24)
 
     cohort_df = load_cohort_retention(
         tuple(selected_countries),
@@ -258,34 +271,42 @@ with tab_cohort:
         cohort_range[0].date(),
         cohort_range[1].date(),
         max_tenure,
+        cohort_grain,
     )
 
     if cohort_df.empty:
         st.info("No data for the selected filters.")
     else:
-        pivot = cohort_df.pivot(
-            index="cohort_month", columns="months_since_acquisition", values="retention_pct"
-        ).sort_index()
-        sizes = cohort_df.drop_duplicates("cohort_month").set_index("cohort_month")["cohort_size"]
+        groups = sorted(cohort_df["cohort_group"].unique())
+        sizes = cohort_df.drop_duplicates("cohort_group").set_index("cohort_group")["cohort_size"]
+        label_fmt = {"Year": "%Y", "Quarter": "%Y-Q", "Month": "%Y-%m"}[cohort_grain]
+        # sequential blue ramp, light (oldest) -> dark (most recent) - encodes recency, not identity
+        colors = pc.sample_colorscale("Blues", [0.25 + 0.65 * i / max(len(groups) - 1, 1) for i in range(len(groups))])
 
-        heatmap = go.Figure(data=go.Heatmap(
-            z=pivot.values,
-            x=pivot.columns,
-            y=[f"{d:%Y-%m} (n={sizes[d]:,})" for d in pivot.index],
-            colorscale=[[0, "#fcfcfb"], [1, "#2a78d6"]],  # sequential blue, light -> dark
-            zmin=0,
-            zmax=100,
-            colorbar=dict(title="% active"),
-            hovertemplate="Cohort %{y}<br>Month %{x} since acquisition: %{z:.1f}% active<extra></extra>",
-        ))
-        heatmap.update_layout(
+        fig = go.Figure()
+        for group, color in zip(groups, colors):
+            group_df = cohort_df[cohort_df["cohort_group"] == group].sort_values("months_since_acquisition")
+            if cohort_grain == "Quarter":
+                label = f"{group.year}-Q{(group.month - 1) // 3 + 1} (n={sizes[group]:,})"
+            else:
+                label = f"{group.strftime(label_fmt)} (n={sizes[group]:,})"
+            fig.add_trace(go.Scatter(
+                x=group_df["months_since_acquisition"],
+                y=group_df["retention_pct"],
+                mode="lines",
+                name=label,
+                line=dict(width=2, color=color),
+            ))
+        fig.update_layout(
             xaxis_title="Months since acquisition",
-            yaxis_title="Cohort month (cohort size)",
-            yaxis=dict(autorange="reversed"),
-            height=max(400, min(1200, 24 * len(pivot.index))),
-            margin=dict(t=30),
+            yaxis_title="% of cohort still active",
+            yaxis=dict(range=[0, 100]),
+            hovermode="x unified",
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+            margin=dict(t=30, r=160),
+            height=550,
         )
-        st.plotly_chart(heatmap, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
 
 with tab_detail:
     if df.empty:
