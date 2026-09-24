@@ -1,6 +1,6 @@
 [sqlfluff]
 templater = dbt
-dialect = postgres
+dialect = bigquery
 exclude_rules = LT05
 
 [sqlfluff:templater:dbt]

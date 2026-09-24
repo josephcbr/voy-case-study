@@ -27,7 +27,9 @@ customer_month_bounds as (
 ),
 
 months as (
-    select distinct month_start_date, month_end_date
+    select distinct
+        month_start_date,
+        month_end_date
     from {{ ref('dim_date') }}
     where month_start_date <= date_trunc({{ var('current_date') }}, month)
 ),
@@ -41,8 +43,8 @@ customer_months as (
         date_diff(months.month_end_date, months.month_start_date, day) + 1 as days_in_month
     from customer_month_bounds
     inner join months
-        on months.month_start_date >= customer_month_bounds.first_month
-       and months.month_start_date <= customer_month_bounds.last_month
+        on customer_month_bounds.first_month <= months.month_start_date
+        and customer_month_bounds.last_month >= months.month_start_date
 ),
 
 -- explode each period to one row per active day via dim_date, then keep
@@ -87,8 +89,8 @@ final as (
         ) as prev_month_active_days
     from customer_months
     left join active_days_by_month
-        on active_days_by_month.customer_id = customer_months.customer_id
-       and active_days_by_month.month_start_date = customer_months.month_start_date
+        on customer_months.customer_id = active_days_by_month.customer_id
+        and customer_months.month_start_date = active_days_by_month.month_start_date
 )
 
 select
@@ -107,4 +109,4 @@ select
     (not final.is_active and final.prev_month_active_days > 0) as is_churn
 from final
 left join {{ ref('dim_customer') }} as dim_customer
-    on dim_customer.customer_id = final.customer_id
+    on final.customer_id = dim_customer.customer_id
