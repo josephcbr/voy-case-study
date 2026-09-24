@@ -279,34 +279,50 @@ with tab_cohort:
     else:
         groups = sorted(cohort_df["cohort_group"].unique())
         sizes = cohort_df.drop_duplicates("cohort_group").set_index("cohort_group")["cohort_size"]
-        label_fmt = {"Year": "%Y", "Quarter": "%Y-Q", "Month": "%Y-%m"}[cohort_grain]
-        # sequential blue ramp, light (oldest) -> dark (most recent) - encodes recency, not identity
-        colors = pc.sample_colorscale("Blues", [0.25 + 0.65 * i / max(len(groups) - 1, 1) for i in range(len(groups))])
 
-        fig = go.Figure()
-        for group, color in zip(groups, colors):
-            group_df = cohort_df[cohort_df["cohort_group"] == group].sort_values("months_since_acquisition")
+        def base_label(group):
             if cohort_grain == "Quarter":
-                label = f"{group.year}-Q{(group.month - 1) // 3 + 1} (n={sizes[group]:,})"
-            else:
-                label = f"{group.strftime(label_fmt)} (n={sizes[group]:,})"
-            fig.add_trace(go.Scatter(
-                x=group_df["months_since_acquisition"],
-                y=group_df["retention_pct"],
-                mode="lines",
-                name=label,
-                line=dict(width=2, color=color),
-            ))
-        fig.update_layout(
-            xaxis_title="Months since acquisition",
-            yaxis_title="% of cohort still active",
-            yaxis=dict(range=[0, 100]),
-            hovermode="x unified",
-            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
-            margin=dict(t=30, r=160),
-            height=550,
+                return f"{group.year}-Q{(group.month - 1) // 3 + 1}"
+            return group.strftime({"Year": "%Y", "Month": "%Y-%m"}[cohort_grain])
+
+        # sequential blue ramp, light (oldest) -> dark (most recent), fixed to the
+        # full available set of timeframes - a selection narrowing which lines show
+        # must not repaint the colors of the ones that remain
+        all_colors = pc.sample_colorscale("Blues", [0.25 + 0.65 * i / max(len(groups) - 1, 1) for i in range(len(groups))])
+        color_map = dict(zip(groups, all_colors))
+        base_labels = {group: base_label(group) for group in groups}
+
+        selected_labels = st.multiselect(
+            "Timeframes to include",
+            options=[base_labels[g] for g in groups],
+            default=[base_labels[g] for g in groups],
         )
-        st.plotly_chart(fig, use_container_width=True)
+        selected_groups = [g for g in groups if base_labels[g] in selected_labels]
+
+        if not selected_groups:
+            st.info("Select at least one timeframe to plot.")
+        else:
+            fig = go.Figure()
+            for group in selected_groups:
+                group_df = cohort_df[cohort_df["cohort_group"] == group].sort_values("months_since_acquisition")
+                label = f"{base_labels[group]} (n={sizes[group]:,})"
+                fig.add_trace(go.Scatter(
+                    x=group_df["months_since_acquisition"],
+                    y=group_df["retention_pct"],
+                    mode="lines",
+                    name=label,
+                    line=dict(width=2, color=color_map[group]),
+                ))
+            fig.update_layout(
+                xaxis_title="Months since acquisition",
+                yaxis_title="% of cohort still active",
+                yaxis=dict(range=[0, 100]),
+                hovermode="x unified",
+                legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
+                margin=dict(t=30, r=160),
+                height=550,
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 with tab_detail:
     if df.empty:
