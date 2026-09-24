@@ -103,6 +103,60 @@ def load_monthly(countries, categories, month_start, month_end, cohort_start, co
     return df
 
 
+@st.cache_data(ttl=3600)
+def load_cohort_retention(countries, categories, cohort_start, cohort_end, max_tenure_months):
+    """Classic cohort retention grid: % of each cohort still active at each
+    months-since-acquisition offset. Not filtered by month_range - a cohort's
+    size is fixed at acquisition, so restricting by calendar month here would
+    undercount cohorts whose acquisition month falls outside that range.
+    """
+    client = get_client()
+    clauses = [
+        "cohort_month between @cohort_start and @cohort_end",
+        "months_since_acquisition between 0 and @max_tenure",
+    ]
+    params = [
+        bigquery.ScalarQueryParameter("cohort_start", "DATE", cohort_start),
+        bigquery.ScalarQueryParameter("cohort_end", "DATE", cohort_end),
+        bigquery.ScalarQueryParameter("max_tenure", "INT64", max_tenure_months),
+    ]
+    if countries:
+        clauses.append("customer_country in unnest(@countries)")
+        params.append(bigquery.ArrayQueryParameter("countries", "STRING", list(countries)))
+    if categories:
+        clauses.append("taxonomy_business_category_group in unnest(@categories)")
+        params.append(bigquery.ArrayQueryParameter("categories", "STRING", list(categories)))
+    where_sql = " and ".join(clauses)
+
+    query = f"""
+        with filtered as (
+            select cohort_month, months_since_acquisition, is_active
+            from `{TABLE}`
+            where {where_sql}
+        ),
+        sizes as (
+            select cohort_month, count(*) as cohort_size
+            from filtered
+            where months_since_acquisition = 0
+            group by 1
+        )
+        select
+            f.cohort_month,
+            f.months_since_acquisition,
+            countif(f.is_active) as active_customers,
+            max(s.cohort_size) as cohort_size
+        from filtered f
+        join sizes s using (cohort_month)
+        group by 1, 2
+        order by 1, 2
+    """
+    job_config = bigquery.QueryJobConfig(query_parameters=params)
+    df = client.query(query, job_config=job_config).to_dataframe()
+    df["cohort_month"] = pd.to_datetime(df["cohort_month"])
+    df["retention_pct"] = df["active_customers"] / df["cohort_size"] * 100
+    return df
+
+
 st.title("Voy Subscription Analytics")
 
 countries_all, categories_all, min_month, max_month = load_filter_options()
@@ -143,7 +197,7 @@ df = load_monthly(
     cohort_range[1].date(),
 )
 
-tab_trends, tab_detail = st.tabs(["Trends", "Monthly detail"])
+tab_trends, tab_cohort, tab_detail = st.tabs(["Trends", "Cohort retention", "Monthly detail"])
 
 with tab_trends:
     if df.empty:
@@ -187,6 +241,51 @@ with tab_trends:
                 "- **Reactivation rate** = customers returning after a gap of at "
                 "least one full month, as a % of this month's active customers."
             )
+
+with tab_cohort:
+    st.caption(
+        "% of each cohort still active at each month since acquisition. "
+        "Uses the Country/Acquisition category/Cohort filters above, but not "
+        "the Month range filter - a cohort's size is fixed at acquisition, so "
+        "restricting by calendar month would undercount cohorts acquired "
+        "outside that window."
+    )
+    max_tenure = st.slider("Months of tenure to show", min_value=6, max_value=48, value=24)
+
+    cohort_df = load_cohort_retention(
+        tuple(selected_countries),
+        tuple(selected_categories),
+        cohort_range[0].date(),
+        cohort_range[1].date(),
+        max_tenure,
+    )
+
+    if cohort_df.empty:
+        st.info("No data for the selected filters.")
+    else:
+        pivot = cohort_df.pivot(
+            index="cohort_month", columns="months_since_acquisition", values="retention_pct"
+        ).sort_index()
+        sizes = cohort_df.drop_duplicates("cohort_month").set_index("cohort_month")["cohort_size"]
+
+        heatmap = go.Figure(data=go.Heatmap(
+            z=pivot.values,
+            x=pivot.columns,
+            y=[f"{d:%Y-%m} (n={sizes[d]:,})" for d in pivot.index],
+            colorscale=[[0, "#fcfcfb"], [1, "#2a78d6"]],  # sequential blue, light -> dark
+            zmin=0,
+            zmax=100,
+            colorbar=dict(title="% active"),
+            hovertemplate="Cohort %{y}<br>Month %{x} since acquisition: %{z:.1f}% active<extra></extra>",
+        ))
+        heatmap.update_layout(
+            xaxis_title="Months since acquisition",
+            yaxis_title="Cohort month (cohort size)",
+            yaxis=dict(autorange="reversed"),
+            height=max(400, min(1200, 24 * len(pivot.index))),
+            margin=dict(t=30),
+        )
+        st.plotly_chart(heatmap, use_container_width=True)
 
 with tab_detail:
     if df.empty:

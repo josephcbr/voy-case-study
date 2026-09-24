@@ -6,6 +6,12 @@ models:
       One row per customer per calendar month, from the customer's first
       active month through current_date's month (see dbt_project.yml vars),
       regardless of how long they've been dormant.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - customer_id
+              - month_start_date
     columns:
       - name: customer_id
         data_type: int64

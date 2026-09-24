@@ -1,8 +1,8 @@
 # Dataset notes
 
 Source data for this case study lives outside the repo (see `RAW_DATA_DIR`
-in `env.sh`) and is loaded into Neon by `scripts/load_raw_data.py`. It is not
-committed here — the files are large (~95 MB combined) and are the
+in `env.sh`) and is loaded into BigQuery by `scripts/load_raw_data.py`. It is
+not committed here — the files are large (~95 MB combined) and are the
 company's own case-study material, not this repo's content to publish.
 
 ## Files

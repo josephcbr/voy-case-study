@@ -32,6 +32,13 @@ from the customer's first active month through the current "as of" date
 (`dbt_project.yml`'s `current_date` var — the whole build is frozen to a
 fixed date, not wall-clock `today()`, since the source data is static).
 
+That date is deliberately not the last date in the raw data. `activity.csv`
+runs to 2024-08-16, but `current_date` is pinned to 2024-07-24. The last
+~3 weeks of the raw data contain a snapshot artifact — a subset of
+subscriptions get two rows per day near the end of the file. Cutting the
+analysis off before that window avoids the whole model needing to reason
+about it, at the cost of the most recent 3 weeks of activity.
+
 Each row carries:
 
 - `active_days` / `non_active_days` — days in the month the customer did or
