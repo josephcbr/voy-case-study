@@ -7,3 +7,5 @@ env.sh
 .DS_Store
 .user.yml
 data/
+dashboard/.venv/
+dashboard/.streamlit/secrets.toml

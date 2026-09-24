@@ -59,12 +59,17 @@ def load_filter_options():
 
 
 @st.cache_data(ttl=3600)
-def load_monthly(countries, categories, month_start, month_end):
+def load_monthly(countries, categories, month_start, month_end, cohort_start, cohort_end):
     client = get_client()
-    clauses = ["month_start_date between @month_start and @month_end"]
+    clauses = [
+        "month_start_date between @month_start and @month_end",
+        "cohort_month between @cohort_start and @cohort_end",
+    ]
     params = [
         bigquery.ScalarQueryParameter("month_start", "DATE", month_start),
         bigquery.ScalarQueryParameter("month_end", "DATE", month_end),
+        bigquery.ScalarQueryParameter("cohort_start", "DATE", cohort_start),
+        bigquery.ScalarQueryParameter("cohort_end", "DATE", cohort_end),
     ]
     if countries:
         clauses.append("customer_country in unnest(@countries)")
@@ -102,16 +107,27 @@ st.title("Voy Subscription Analytics")
 
 countries_all, categories_all, min_month, max_month = load_filter_options()
 
-filter_col1, filter_col2, filter_col3 = st.columns([1, 1, 2])
+min_month_dt = pd.Timestamp(min_month).to_pydatetime()
+max_month_dt = pd.Timestamp(max_month).to_pydatetime()
+
+filter_col1, filter_col2 = st.columns(2)
 with filter_col1:
     selected_countries = st.multiselect("Country", countries_all)
 with filter_col2:
     selected_categories = st.multiselect("Acquisition category", categories_all)
+
+filter_col3, filter_col4 = st.columns(2)
 with filter_col3:
-    min_month_dt = pd.Timestamp(min_month).to_pydatetime()
-    max_month_dt = pd.Timestamp(max_month).to_pydatetime()
     month_range = st.slider(
-        "Month range",
+        "Month range (which months to show)",
+        min_value=min_month_dt,
+        max_value=max_month_dt,
+        value=(min_month_dt, max_month_dt),
+        format="YYYY-MM",
+    )
+with filter_col4:
+    cohort_range = st.slider(
+        "Cohort - customer's first-ever active month",
         min_value=min_month_dt,
         max_value=max_month_dt,
         value=(min_month_dt, max_month_dt),
@@ -123,6 +139,8 @@ df = load_monthly(
     tuple(selected_categories),
     month_range[0].date(),
     month_range[1].date(),
+    cohort_range[0].date(),
+    cohort_range[1].date(),
 )
 
 tab_trends, tab_detail = st.tabs(["Trends", "Monthly detail"])
