@@ -13,12 +13,13 @@ clean-targets:
   - "dbt_packages"
 
 vars:
-  # Raw activity.csv actually runs to 2024-08-16, but the last ~3 weeks of
-  # that (roughly Aug 1-16) contain a snapshot artifact: a subset of
-  # subscriptions get two rows per day (a 0-day and a 1-day period on the
-  # same from_date). Pinning current_date to 2024-07-24 - safely before that
-  # window - avoids the whole model tree needing to reason about it, at the
-  # cost of ~3 weeks of the most recent activity. See docs/approach.md.
+# `activity.csv`runs to 2024-08-16, but `current_date` is pinned to 2024-07-24 
+# in order to simulate the use case of having subscriptions that run past the current
+# date. The data in the last 3 weeks of the dataset looks to behave differently
+# than the historic data, looking more like subscription snapshot data for 
+# active subscriptions. More detail is needed on how this data is generated
+# in order to decide if the method of combining the records for a subscription
+# ID with the same start date applies correctly to it.
   current_date: "date('2024-07-24')"
 
 models:
